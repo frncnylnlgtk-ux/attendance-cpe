@@ -1128,7 +1128,7 @@
         var payload = encodeURIComponent(s.name);
         var url = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + payload;
         return '<div class="qr-print-card">' +
-          '<img src="' + url + '" width="150" height="150" alt="QR for ' + escapeHtml(s.name) + '">' +
+          '<img src="' + url + '" width="220" height="220" alt="QR for ' + escapeHtml(s.name) + '">' +
           '<div class="student-name">' + escapeHtml(s.name) + '</div>' +
         '</div>';
       }).join('');
@@ -1169,17 +1169,28 @@
       );
     }
 
+    var qrScanStarted = false;
+    var qrFrameCount = 0;
+
     function tryGetCamera(constraints, isFallback) {
       navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
         qrStream = stream;
+        qrScanStarted = false;
+        qrFrameCount = 0;
         var video = document.getElementById('qrVideo');
         video.srcObject = stream;
-        video.onloadedmetadata = function () {
+
+        function kickOffScan() {
+          if (qrScanStarted) return;
+          qrScanStarted = true;
           video.play();
           document.getElementById('qrStatus').textContent = 'Point camera at a QR code...';
           document.getElementById('qrStatus').style.color = 'var(--cyan)';
           scanLoop();
-        };
+        }
+
+        video.onloadedmetadata = kickOffScan;
+        video.oncanplay = kickOffScan;
       }).catch(function (err) {
         var isConstraintIssue = err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError';
         if (!isFallback && isConstraintIssue) {
@@ -1271,6 +1282,7 @@
         var w = video.videoWidth;
         var h = video.videoHeight;
         if (w && h) {
+          qrFrameCount++;
           canvas.width = w;
           canvas.height = h;
           var ctx = canvas.getContext('2d');
@@ -1279,6 +1291,14 @@
           var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
           if (code && code.data) {
             handleLiveQrResult(code.data.trim());
+          } else if (qrFrameCount % 30 === 0) {
+            // Periodically show scan activity + resolution so we can confirm
+            // the loop is actually running and see what the camera is capturing.
+            var statusEl = document.getElementById('qrStatus');
+            if (!statusEl.dataset.locked) {
+              statusEl.textContent = 'Scanning... (' + w + 'x' + h + ', frame ' + qrFrameCount + ')';
+              statusEl.style.color = 'var(--muted)';
+            }
           }
         }
       }
@@ -1313,6 +1333,8 @@
       if (!match) {
         statusEl.textContent = 'No matching student for "' + text + '"';
         statusEl.style.color = 'var(--absent)';
+        statusEl.dataset.locked = '1';
+        setTimeout(function () { delete statusEl.dataset.locked; }, 1800);
         qrLastCode = text;
         qrLastCodeTime = now;
         return;
@@ -1320,6 +1342,8 @@
 
       qrLastCode = text;
       qrLastCodeTime = now;
+      statusEl.dataset.locked = '1';
+      setTimeout(function () { delete statusEl.dataset.locked; }, 1800);
 
       var lastRow = document.getElementById('qrLastRow');
       var lastName = document.getElementById('qrLastName');
