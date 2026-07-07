@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <base target="_top">
   <meta charset="utf-8">
-  <title>CPE Attendance</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     :root {
       --bg: #0a0a0f;
@@ -53,23 +52,6 @@
       font-size: 13px;
       margin-bottom: 16px;
       text-align: center;
-    }
-    .config-banner {
-      background: var(--card);
-      border: 1px solid var(--absent);
-      border-radius: 10px;
-      padding: 12px 14px;
-      margin-bottom: 14px;
-      font-size: 13px;
-      color: var(--text);
-      display: none;
-    }
-    .config-banner.show { display: block; }
-    .config-banner code {
-      background: var(--card-alt);
-      padding: 2px 6px;
-      border-radius: 4px;
-      color: var(--cyan);
     }
     .tabs {
       display: flex;
@@ -550,6 +532,7 @@
       font-style: italic;
     }
 
+    /* ── QR Scanner ── */
     .qr-status-text {
       margin-top: 10px;
       text-align: center;
@@ -578,12 +561,29 @@
       bottom: 12%;
       border: 3px solid var(--cyan);
       border-radius: 14px;
-      box-shadow: 0 0 0 2000px rgba(0,0,0,0.35);
+      box-shadow: 0 0 0 2000px rgba(0,0,0,0.45);
       pointer-events: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .qr-scan-frame.hit {
       border-color: #2bff8c;
-      box-shadow: 0 0 0 2000px rgba(0,0,0,0.35), 0 0 24px rgba(43,255,140,0.6);
+      box-shadow: 0 0 0 2000px rgba(0,0,0,0.45), 0 0 28px rgba(43,255,140,0.7);
+    }
+    /* animated scan line */
+    .qr-scan-line {
+      position: absolute;
+      left: 12%;
+      right: 12%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      opacity: 0.7;
+      animation: scanLine 2s linear infinite;
+      pointer-events: none;
+      top: 12%;
+    }
+    @keyframes scanLine {
+      0%   { transform: translateY(0); }
+      100% { transform: translateY(calc((100% - 24%) * 3.5)); }
     }
     .qr-last-row {
       display: flex;
@@ -597,6 +597,17 @@
       font-size: 13px;
     }
     .qr-last-name { font-weight: 700; color: var(--text); }
+    .qr-counter-row {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .qr-counter-row b { color: var(--cyan); }
+
+    /* QR Print Grid */
     .qr-print-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -620,8 +631,9 @@
       padding: 6px;
     }
     .qr-print-card .student-name { font-size: 13px; }
+    .qr-print-card .student-id { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
     @media print {
-      .tabs, .status-bar, .header-wrap, .footer-bar, .toast, .config-banner { display: none !important; }
+      .tabs, .status-bar, .header-wrap, .footer-bar, .toast { display: none !important; }
       body { background: #fff; color: #000; padding: 0; }
       .qr-print-card { break-inside: avoid; border-color: #ccc; }
     }
@@ -631,11 +643,7 @@
 
   <div class="header-wrap">
     <h1>CPE ATTENDANCE</h1>
-    <div class="subtitle">Tap a name OR scan a QR code to mark present. Unselected names become absent (15 peso penalty) when you finalize.</div>
-  </div>
-
-  <div class="config-banner" id="configBanner">
-    Set your Apps Script deployment URL in <code>API_URL</code> near the top of the script section of this file, then reload.
+    <div class="subtitle">Tap a name OR scan a QR code to mark present. Unselected names become absent (₱15 penalty) when you finalize.</div>
   </div>
 
   <div class="status-bar">
@@ -646,13 +654,14 @@
 
   <div class="tabs">
     <button class="tab-btn active" id="tabAttendance" onclick="switchTab('attendance')">Attendance</button>
-    <button class="tab-btn" id="tabEvents" onclick="switchTab('events')">Events</button>
-    <button class="tab-btn" id="tabBalance" onclick="switchTab('balance')">Balances</button>
-    <button class="tab-btn" id="tabQR" onclick="switchTab('qr')">QR Codes</button>
+    <button class="tab-btn" id="tabEvents"     onclick="switchTab('events')">Events</button>
+    <button class="tab-btn" id="tabBalance"    onclick="switchTab('balance')">Balances</button>
+    <button class="tab-btn" id="tabQR"         onclick="switchTab('qr')">QR Codes</button>
   </div>
 
   <div class="toast" id="toast"></div>
 
+  <!-- ══════════════ ATTENDANCE PANEL ══════════════ -->
   <div class="panel active" id="panelAttendance">
 
     <div class="event-bar" id="eventBar">
@@ -672,9 +681,9 @@
       </div>
     </div>
 
-    <button class="scan-btn" id="scanBtn" onclick="openScanner()" disabled>Scan QR Code (Live)</button>
+    <button class="scan-btn" id="scanBtn" onclick="openScanner()" disabled>📷 Scan QR Code (Live)</button>
 
-    <input type="text" class="search-box" id="searchBox" placeholder="Search Student Name..." oninput="renderList()" disabled>
+    <input type="text" class="search-box" id="searchBox" placeholder="Search Student Name or ID..." oninput="renderList()" disabled>
 
     <div class="summary">
       <div class="pill">Present: <b id="presentCount">0</b></div>
@@ -686,6 +695,7 @@
     </div>
   </div>
 
+  <!-- ══════════════ EVENTS PANEL ══════════════ -->
   <div class="panel" id="panelEvents">
     <div id="eventsListView">
       <div class="event-list" id="eventsList">
@@ -693,23 +703,25 @@
       </div>
     </div>
     <div id="eventsRosterView" style="display:none;">
-      <button class="event-change-btn" style="margin-bottom:10px;" onclick="backToEventsList()">Back to Events</button>
+      <button class="event-change-btn" style="margin-bottom:10px;" onclick="backToEventsList()">← Back to Events</button>
       <div class="event-active-name" id="rosterEventName" style="margin-bottom:10px; font-size:17px;"></div>
       <div class="roster-list" id="rosterList"></div>
     </div>
   </div>
 
+  <!-- ══════════════ BALANCE PANEL ══════════════ -->
   <div class="panel" id="panelBalance">
     <div class="balance-list" id="balanceList">
       <div class="loading">Loading...</div>
     </div>
   </div>
 
+  <!-- ══════════════ QR CODES PANEL ══════════════ -->
   <div class="panel" id="panelQR">
     <div class="event-bar">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-        <div style="font-size:13px; color:var(--muted);">Each student's QR encodes their exact name. Print this page or screenshot individual codes to hand out.</div>
-        <button class="event-start-btn" onclick="window.print()">Print</button>
+        <div style="font-size:13px; color:var(--muted);">Each QR encodes the student's unique Student ID. Print or screenshot individual codes to hand out.</div>
+        <button class="event-start-btn" onclick="window.print()">🖨️ Print</button>
       </div>
     </div>
     <div class="qr-print-grid" id="qrPrintList">
@@ -717,15 +729,17 @@
     </div>
   </div>
 
+  <!-- ══════════════ FOOTER ══════════════ -->
   <div class="footer-bar" id="footerBar">
     <button class="btn btn-primary" id="submitBtn" onclick="finalizeAttendance()">Finalize Attendance</button>
   </div>
 
+  <!-- ══════════════ HISTORY MODAL ══════════════ -->
   <div class="modal-overlay" id="historyModal" onclick="if(event.target===this) closeHistory()">
     <div class="modal-box">
       <div class="modal-header">
         <h3 id="historyName">Attendance History</h3>
-        <button class="modal-close" onclick="closeHistory()">X</button>
+        <button class="modal-close" onclick="closeHistory()">✕</button>
       </div>
       <div id="historyBody">
         <div class="loading">Loading...</div>
@@ -733,82 +747,108 @@
     </div>
   </div>
 
+  <!-- ══════════════ QR SCANNER MODAL ══════════════ -->
   <div class="modal-overlay" id="qrModal" onclick="if(event.target===this) closeScanner()">
     <div class="modal-box">
       <div class="modal-header">
-        <h3>Live QR Scanner</h3>
-        <button class="modal-close" onclick="closeScanner()">X</button>
+        <h3>📷 Live QR Scanner</h3>
+        <button class="modal-close" onclick="closeScanner()">✕</button>
       </div>
-      <p style="color:var(--muted); font-size:13px; margin-top:0;">Point the camera at each student's QR code. Recognized students are marked present automatically — keep moving from one code to the next.</p>
-      <div class="qr-video-wrap" id="qrVideoWrap" onclick="tapToFocus(event)">
+      <p style="color:var(--muted); font-size:13px; margin-top:0; margin-bottom:10px;">
+        Point the camera at each student's ID QR code. Students are marked present automatically — hold steady for 1–2 seconds per code.
+      </p>
+      <div class="qr-video-wrap">
         <video id="qrVideo" playsinline muted autoplay></video>
         <div class="qr-scan-frame" id="qrScanFrame"></div>
+        <div class="qr-scan-line" id="qrScanLine"></div>
       </div>
-      <div style="font-size:11px; color:var(--muted); text-align:center; margin-top:6px;">Tap the video if the code won't focus.</div>
       <canvas id="qrCanvas" style="display:none;"></canvas>
-      <div class="qr-status-text" id="qrStatus" style="color:var(--cyan);">Starting camera...</div>
+      <div class="qr-status-text" id="qrStatus" style="color:var(--cyan);">Starting camera…</div>
       <div class="qr-last-row" id="qrLastRow" style="display:none;">
         <span>Last scanned:</span>
         <span class="qr-last-name" id="qrLastName">-</span>
       </div>
+      <div class="qr-counter-row">
+        Scanned this session: <b id="qrScannedCount">0</b>
+      </div>
     </div>
   </div>
 
+  <!-- jsQR library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
   <script>
-    // ============================================================
-    // CONFIG — paste your Apps Script Web App deployment URL here.
-    // Deploy Code.gs as: Deploy > New deployment > Web app
-    //   Execute as: Me
-    //   Who has access: Anyone
-    // Copy the resulting URL (ends in /exec) into API_URL below.
-    // ============================================================
-    var API_URL = 'https://script.google.com/macros/s/AKfycbyhUqwd_xW0fu6_QOtWIL1EKrKispq-7HS_m9tblrGZRXLfCY6q4CVzHj3B69l4VJNE/exec';
+    /* ═══════════════════════════════════════════
+       BACKEND CONNECTION (Google Apps Script Web App)
+       1. In your Apps Script project: Deploy → New deployment → type "Web app"
+          - Execute as: Me
+          - Who has access: Anyone
+       2. Copy the /exec URL it gives you and paste it below.
+    ═══════════════════════════════════════════ */
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzivvKHtcI00m-sfQYkXhaZDbfZgEc3NxgRRwtqUKLODdnNuffL7ZtfvSINq3ujtsLp/exec';
 
-    if (!API_URL || API_URL.indexOf('PASTE_YOUR') === 0) {
-      document.getElementById('configBanner').classList.add('show');
-    }
-
-    // Calls the Apps Script JSON API. Uses text/plain content-type so the
-    // browser treats this as a "simple request" and skips the CORS
-    // preflight (OPTIONS) that Apps Script web apps don't handle.
-    function callApi(action, payload) {
+    function callAPI(action, payload) {
+      // NOTE: no custom headers here on purpose — fetch defaults a string body
+      // to "text/plain", which keeps this a CORS "simple request" and avoids
+      // a preflight OPTIONS call that Apps Script web apps don't handle.
       return fetch(API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: action, payload: payload || {} })
-      }).then(function (res) {
-        return res.json();
-      }).then(function (json) {
-        if (json.error) throw new Error(json.error);
-        return json.data;
-      });
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (json) {
+          if (json.error) throw new Error(json.error);
+          return json.data;
+        });
     }
 
-    var students = [];
-    var presentMap = {};
-    var currentTab = 'attendance';
+    /* ═══════════════════════════════════════════
+       STATE
+    ═══════════════════════════════════════════ */
+    var students    = [];
+    var presentMap  = {};   // keyed by Student ID
+    var currentTab  = 'attendance';
     var currentEvent = '';
 
-    // --- Live scanner state ---
-    var qrStream = null;
-    var qrScanRAF = null;
-    var qrLastCode = null;
+    // Scanner state
+    var qrStream       = null;
+    var qrScanRAF      = null;
+    var qrLastCode     = null;
     var qrLastCodeTime = 0;
-    var QR_COOLDOWN_MS = 2000; // ignore the same code for 2s so it doesn't get toggled off right after
+    var qrSessionCount = 0;
+    var QR_COOLDOWN_MS = 2500;   // ignore repeat scan of same code within this window
+
+    /* ═══════════════════════════════════════════
+       UTILITIES
+    ═══════════════════════════════════════════ */
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, function (c) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+      });
+    }
 
     function showToast(msg) {
       var t = document.getElementById('toast');
       t.textContent = msg;
       t.classList.add('show');
-      setTimeout(function () { t.classList.remove('show'); }, 2200);
+      setTimeout(function () { t.classList.remove('show'); }, 2400);
     }
 
+    function findStudentById(id) {
+      var target = String(id).trim();
+      for (var i = 0; i < students.length; i++) {
+        if (String(students[i].id).trim() === target) return students[i];
+      }
+      return null;
+    }
+
+    /* ═══════════════════════════════════════════
+       STATUS BAR CLOCK
+    ═══════════════════════════════════════════ */
     function updateStatusBar() {
-      var now = new Date();
-      var dateStr = now.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
-      var timeStr = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      document.getElementById('statusDateTime').textContent = dateStr + ' - ' + timeStr;
+      var now     = new Date();
+      var dateStr = now.toLocaleDateString(undefined, { weekday:'short', year:'numeric', month:'short', day:'numeric' });
+      var timeStr = now.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      document.getElementById('statusDateTime').textContent = dateStr + ' — ' + timeStr;
 
       var evEl = document.getElementById('statusEvent');
       if (currentEvent) {
@@ -822,32 +862,35 @@
     setInterval(updateStatusBar, 1000);
     updateStatusBar();
 
+    /* ═══════════════════════════════════════════
+       TAB SWITCHING
+    ═══════════════════════════════════════════ */
     function switchTab(tab) {
       currentTab = tab;
-      document.getElementById('tabAttendance').classList.toggle('active', tab === 'attendance');
-      document.getElementById('tabEvents').classList.toggle('active', tab === 'events');
-      document.getElementById('tabBalance').classList.toggle('active', tab === 'balance');
-      document.getElementById('tabQR').classList.toggle('active', tab === 'qr');
-      document.getElementById('panelAttendance').classList.toggle('active', tab === 'attendance');
-      document.getElementById('panelEvents').classList.toggle('active', tab === 'events');
-      document.getElementById('panelBalance').classList.toggle('active', tab === 'balance');
-      document.getElementById('panelQR').classList.toggle('active', tab === 'qr');
+      ['attendance','events','balance','qr'].forEach(function (t) {
+        var cap = t.charAt(0).toUpperCase() + t.slice(1);
+        document.getElementById('tab'  + cap).classList.toggle('active', t === tab);
+        document.getElementById('panel'+ cap).classList.toggle('active', t === tab);
+      });
       document.getElementById('footerBar').style.display = tab === 'attendance' ? 'flex' : 'none';
       if (tab === 'balance') renderBalances();
-      if (tab === 'events') loadEvents();
-      if (tab === 'qr') renderQRList();
+      if (tab === 'events')  loadEvents();
+      if (tab === 'qr')      renderQRList();
       if (tab !== 'attendance') closeScanner();
     }
 
+    /* ═══════════════════════════════════════════
+       EVENT SETUP
+    ═══════════════════════════════════════════ */
     function startEvent() {
       var val = document.getElementById('eventInput').value.trim();
       if (!val) { alert('Please enter an event name first.'); return; }
       currentEvent = val;
-      document.getElementById('eventSetup').style.display = 'none';
+      document.getElementById('eventSetup').style.display  = 'none';
       document.getElementById('eventActive').style.display = 'flex';
       document.getElementById('eventActiveName').textContent = currentEvent;
       document.getElementById('searchBox').disabled = false;
-      document.getElementById('scanBtn').disabled = false;
+      document.getElementById('scanBtn').disabled   = false;
       presentMap = {};
       renderList();
       updateStatusBar();
@@ -855,186 +898,216 @@
 
     function changeEvent() {
       if (Object.keys(presentMap).length > 0 &&
-          !confirm('Changing the event will clear current unsaved attendance taps. Continue?')) {
-        return;
-      }
-      presentMap = {};
+          !confirm('Changing the event will clear unsaved taps. Continue?')) return;
+      presentMap   = {};
       currentEvent = '';
-      document.getElementById('eventInput').value = '';
-      document.getElementById('eventSetup').style.display = 'block';
+      document.getElementById('eventInput').value  = '';
+      document.getElementById('eventSetup').style.display  = 'block';
       document.getElementById('eventActive').style.display = 'none';
       document.getElementById('searchBox').disabled = true;
-      document.getElementById('scanBtn').disabled = true;
+      document.getElementById('scanBtn').disabled   = true;
       renderList();
       updateStatusBar();
       closeScanner();
     }
 
+    /* ═══════════════════════════════════════════
+       STUDENT DATA
+    ═══════════════════════════════════════════ */
     function loadStudents() {
-      document.getElementById('studentList').innerHTML = '<div class="loading">Loading...</div>';
-      callApi('getStudents').then(function (data) {
-        students = data;
-        renderList();
-        renderBalances();
-        if (currentTab === 'qr') renderQRList();
-      }).catch(function (err) {
-        document.getElementById('studentList').innerHTML = '<div class="loading">Error: ' + err.message + '</div>';
-      });
+      callAPI('getStudents')
+        .then(function (data) {
+          students = data;
+          renderList();
+          renderBalances();
+          if (currentTab === 'qr') renderQRList();
+        })
+        .catch(function (err) {
+          document.getElementById('studentList').innerHTML =
+            '<div class="loading">Error loading students: ' + escapeHtml(err.message) + '</div>';
+        });
     }
 
+    /* ═══════════════════════════════════════════
+       ATTENDANCE LIST RENDER
+    ═══════════════════════════════════════════ */
     function renderList() {
       var list = document.getElementById('studentList');
 
       if (!currentEvent) {
         list.innerHTML = '<div class="loading">Set an event name above to begin.</div>';
         document.getElementById('presentCount').textContent = 0;
-        document.getElementById('totalCount').textContent = students.length;
+        document.getElementById('totalCount').textContent   = students.length;
         return;
       }
 
-      var query = document.getElementById('searchBox').value.trim().toLowerCase();
-      var filtered = students.filter(function (s) { return s.name.toLowerCase().indexOf(query) !== -1; });
+      var query    = document.getElementById('searchBox').value.trim().toLowerCase();
+      var filtered = students.filter(function (s) {
+        return s.name.toLowerCase().indexOf(query) !== -1 ||
+               String(s.id).toLowerCase().indexOf(query) !== -1;
+      });
 
       if (filtered.length === 0) {
         list.innerHTML = '<div class="loading">No students found.</div>';
       } else {
         list.innerHTML = filtered.map(function (s) {
-          var mark = presentMap[s.name];
+          var mark      = presentMap[s.id];
           var isPresent = !!mark;
-          var timeLabel = isPresent ? ('Marked present at ' + mark.time + (mark.viaQr ? ' (via QR)' : '')) : 'Not yet marked';
+          var timeLabel = isPresent
+            ? 'Marked present at ' + mark.time + (mark.viaQr ? ' 📷' : '')
+            : 'Not yet marked';
           var periodChip = isPresent
-            ? '<span class="period-chip ' + (mark.period === 'Morning' ? 'morning' : 'afternoon') + '">' + mark.period + '</span>'
+            ? '<span class="period-chip ' + (mark.period === 'Morning' ? 'morning' : 'afternoon') + '">'
+              + mark.period + '</span>'
             : '';
-          return '<div class="student-card ' + (isPresent ? 'present' : '') + '" onclick="toggleStudent(\'' +
-            s.name.replace(/'/g, "\\'") + '\')">' +
-              '<div>' +
-                '<div class="student-name">' + escapeHtml(s.name) + periodChip + '</div>' +
-                '<div class="student-time">' + timeLabel + '</div>' +
-              '</div>' +
-              '<div class="status-chip">' + (isPresent ? 'PRESENT' : 'TAP') + '</div>' +
-            '</div>';
+          return '<div class="student-card ' + (isPresent ? 'present' : '') + '" '
+            + 'onclick="toggleStudent(\'' + String(s.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')">'
+            + '<div>'
+            +   '<div class="student-name">' + escapeHtml(s.name) + periodChip + '</div>'
+            +   '<div class="student-time">ID: ' + escapeHtml(s.id) + ' — '  + timeLabel + '</div>'
+            + '</div>'
+            + '<div class="status-chip">' + (isPresent ? 'PRESENT' : 'TAP') + '</div>'
+            + '</div>';
         }).join('');
       }
 
       document.getElementById('presentCount').textContent = Object.keys(presentMap).length;
-      document.getElementById('totalCount').textContent = students.length;
+      document.getElementById('totalCount').textContent   = students.length;
     }
 
-    function toggleStudent(name, viaQr) {
+    function toggleStudent(id, viaQr) {
       if (!currentEvent) return;
-      if (presentMap[name]) {
-        delete presentMap[name];
+      if (presentMap[id]) {
+        delete presentMap[id];
       } else {
-        var now = new Date();
-        var hh = String(now.getHours()).padStart(2, '0');
-        var mm = String(now.getMinutes()).padStart(2, '0');
-        var ss = String(now.getSeconds()).padStart(2, '0');
+        var now    = new Date();
+        var hh     = String(now.getHours()).padStart(2, '0');
+        var mm     = String(now.getMinutes()).padStart(2, '0');
+        var ss_    = String(now.getSeconds()).padStart(2, '0');
         var period = now.getHours() < 12 ? 'Morning' : 'Afternoon';
-        presentMap[name] = { time: hh + ':' + mm + ':' + ss, period: period, viaQr: !!viaQr };
+        presentMap[id] = { time: hh + ':' + mm + ':' + ss_, period: period, viaQr: !!viaQr };
       }
       renderList();
     }
 
+    /* ═══════════════════════════════════════════
+       FINALIZE ATTENDANCE
+    ═══════════════════════════════════════════ */
     function finalizeAttendance() {
       if (!currentEvent) { alert('Please set an event name first.'); return; }
-      var btn = document.getElementById('submitBtn');
-      var presentNames = Object.keys(presentMap);
-      var absentCount = students.length - presentNames.length;
+      var btn          = document.getElementById('submitBtn');
+      var presentIds   = Object.keys(presentMap);
+      var absentCount  = students.length - presentIds.length;
 
-      if (!confirm('Finalize attendance for "' + currentEvent + '"?\n\nPresent: ' + presentNames.length +
-                   '\nAbsent: ' + absentCount + ' (each gets 15 peso penalty)')) {
-        return;
-      }
+      if (!confirm(
+        'Finalize attendance for "' + currentEvent + '"?\n\n'
+        + 'Present: ' + presentIds.length + '\n'
+        + 'Absent:  ' + absentCount + ' (each gets ₱15 penalty)'
+      )) return;
 
-      btn.disabled = true;
-      btn.textContent = 'Saving...';
+      btn.disabled    = true;
+      btn.textContent = 'Saving…';
 
-      callApi('submitAttendance', { presentNames: presentNames, eventName: currentEvent }).then(function (updated) {
-        students = updated;
-        presentMap = {};
-        currentEvent = '';
-        document.getElementById('eventInput').value = '';
-        document.getElementById('eventSetup').style.display = 'block';
-        document.getElementById('eventActive').style.display = 'none';
-        document.getElementById('searchBox').disabled = true;
-        document.getElementById('searchBox').value = '';
-        document.getElementById('scanBtn').disabled = true;
-        renderList();
-        renderBalances();
-        updateStatusBar();
-        btn.disabled = false;
-        btn.textContent = 'Finalize Attendance';
-        showToast('Attendance saved!');
-      }).catch(function (err) {
-        btn.disabled = false;
-        btn.textContent = 'Finalize Attendance';
-        alert('Error: ' + err.message);
-      });
+      callAPI('submitAttendance', { presentIds: presentIds, eventName: currentEvent })
+        .then(function (updated) {
+          students     = updated;
+          presentMap   = {};
+          currentEvent = '';
+          document.getElementById('eventInput').value  = '';
+          document.getElementById('eventSetup').style.display  = 'block';
+          document.getElementById('eventActive').style.display = 'none';
+          document.getElementById('searchBox').disabled = true;
+          document.getElementById('searchBox').value   = '';
+          document.getElementById('scanBtn').disabled  = true;
+          renderList();
+          renderBalances();
+          updateStatusBar();
+          btn.disabled    = false;
+          btn.textContent = 'Finalize Attendance';
+          showToast('✅ Attendance saved!');
+        })
+        .catch(function (err) {
+          btn.disabled    = false;
+          btn.textContent = 'Finalize Attendance';
+          alert('Error: ' + err.message);
+        });
     }
 
+    /* ═══════════════════════════════════════════
+       EVENTS TAB
+    ═══════════════════════════════════════════ */
     function loadEvents() {
       var list = document.getElementById('eventsList');
-      list.innerHTML = '<div class="loading">Loading events...</div>';
-      document.getElementById('eventsListView').style.display = 'block';
+      list.innerHTML = '<div class="loading">Loading events…</div>';
+      document.getElementById('eventsListView').style.display  = 'block';
       document.getElementById('eventsRosterView').style.display = 'none';
 
-      callApi('getEventsList').then(function (events) {
-        if (!events || events.length === 0) {
-          list.innerHTML = '<div class="loading">No events recorded yet.</div>';
-          return;
-        }
-        list.innerHTML = events.map(function (e) {
-          var safeName = e.event.replace(/'/g, "\\'");
-          return '<div class="event-card" onclick="viewEventRoster(\'' + safeName + '\')">' +
-            '<div class="event-card-top">' +
-              '<span class="event-card-name">' + escapeHtml(e.event) + '</span>' +
-            '</div>' +
-            '<div class="event-card-date">' + e.date + '</div>' +
-            '<div class="event-card-stats">' +
-              '<span class="stat-present">Present: ' + e.present + '</span>' +
-              '<span class="stat-absent">Absent: ' + e.absent + '</span>' +
-            '</div>' +
-          '</div>';
-        }).join('');
-      }).catch(function (err) {
-        list.innerHTML = '<div class="loading">Error: ' + err.message + '</div>';
-      });
+      callAPI('getEventsList')
+        .then(function (events) {
+          if (!events || events.length === 0) {
+            list.innerHTML = '<div class="loading">No events recorded yet.</div>';
+            return;
+          }
+          list.innerHTML = events.map(function (e) {
+            var safe = e.event.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+            return '<div class="event-card" onclick="viewEventRoster(\'' + safe + '\')">'
+              + '<div class="event-card-top">'
+              +   '<span class="event-card-name">' + escapeHtml(e.event) + '</span>'
+              + '</div>'
+              + '<div class="event-card-date">' + escapeHtml(e.date) + '</div>'
+              + '<div class="event-card-stats">'
+              +   '<span class="stat-present">Present: ' + e.present + '</span>'
+              +   '<span class="stat-absent">Absent: '  + e.absent  + '</span>'
+              + '</div>'
+              + '</div>';
+          }).join('');
+        })
+        .catch(function (err) {
+          list.innerHTML = '<div class="loading">Error: ' + escapeHtml(err.message) + '</div>';
+        });
     }
 
     function viewEventRoster(eventName) {
-      document.getElementById('eventsListView').style.display = 'none';
+      document.getElementById('eventsListView').style.display   = 'none';
       document.getElementById('eventsRosterView').style.display = 'block';
-      document.getElementById('rosterEventName').textContent = eventName;
+      document.getElementById('rosterEventName').textContent    = eventName;
       var rosterList = document.getElementById('rosterList');
-      rosterList.innerHTML = '<div class="loading">Loading...</div>';
+      rosterList.innerHTML = '<div class="loading">Loading…</div>';
 
-      callApi('getEventAttendance', { eventName: eventName }).then(function (roster) {
-        if (!roster || roster.length === 0) {
-          rosterList.innerHTML = '<div class="loading">No records for this event.</div>';
-          return;
-        }
-        rosterList.innerHTML = roster.map(function (r) {
-          var isPresent = r.status.indexOf('Present') === 0;
-          return '<div class="roster-card ' + (isPresent ? 'present' : 'absent') + '">' +
-            '<div>' +
-              '<div class="roster-name">' + escapeHtml(r.name) + '</div>' +
-              '<div class="roster-meta">' + r.date + ' - ' + r.time + ' (' + r.period + ')</div>' +
-            '</div>' +
-            '<div class="status-chip" style="' + (isPresent ? 'background:var(--gradient-accent);color:#06060a;border-color:transparent;' : 'color:var(--absent);border-color:rgba(255,77,109,0.4);') + '">' +
-              (isPresent ? 'PRESENT' : 'ABSENT') +
-            '</div>' +
-          '</div>';
-        }).join('');
-      }).catch(function (err) {
-        rosterList.innerHTML = '<div class="loading">Error: ' + err.message + '</div>';
-      });
+      callAPI('getEventAttendance', { eventName: eventName })
+        .then(function (roster) {
+          if (!roster || roster.length === 0) {
+            rosterList.innerHTML = '<div class="loading">No records for this event.</div>';
+            return;
+          }
+          rosterList.innerHTML = roster.map(function (r) {
+            var isPresent = r.status.indexOf('Present') === 0;
+            return '<div class="roster-card ' + (isPresent ? 'present' : 'absent') + '">'
+              + '<div>'
+              +   '<div class="roster-name">' + escapeHtml(r.name) + ' <span style="color:var(--muted); font-weight:400;">(' + escapeHtml(r.id) + ')</span></div>'
+              +   '<div class="roster-meta">' + r.date + ' — ' + r.time + ' (' + r.period + ')</div>'
+              + '</div>'
+              + '<div class="status-chip" style="'
+              +   (isPresent
+                    ? 'background:var(--gradient-accent);color:#06060a;border-color:transparent;'
+                    : 'color:var(--absent);border-color:rgba(255,77,109,0.4);')
+              + '">' + (isPresent ? 'PRESENT' : 'ABSENT') + '</div>'
+              + '</div>';
+          }).join('');
+        })
+        .catch(function (err) {
+          rosterList.innerHTML = '<div class="loading">Error: ' + escapeHtml(err.message) + '</div>';
+        });
     }
 
     function backToEventsList() {
-      document.getElementById('eventsListView').style.display = 'block';
+      document.getElementById('eventsListView').style.display   = 'block';
       document.getElementById('eventsRosterView').style.display = 'none';
     }
 
+    /* ═══════════════════════════════════════════
+       BALANCE TAB
+    ═══════════════════════════════════════════ */
     function renderBalances() {
       var list = document.getElementById('balanceList');
       if (students.length === 0) {
@@ -1042,108 +1115,126 @@
         return;
       }
       list.innerHTML = students.map(function (s) {
-        var cls = s.balance > 0 ? 'balance-due' : 'balance-zero';
-        var safeName = s.name.replace(/'/g, "\\'");
+        var cls    = s.balance > 0 ? 'balance-due' : 'balance-zero';
+        var safeId = String(s.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
         var checkinHtml;
         if (s.lastEvent) {
-          var statusIsPresent = s.lastStatus.indexOf('Present') === 0;
-          checkinHtml = '<div class="balance-checkin">' +
-            '<span>' + (statusIsPresent ? 'Present' : 'Absent') + ' - ' + s.lastDate + ' - ' + s.lastTime + '</span>' +
-            '<span class="event-tag">' + escapeHtml(s.lastEvent) + '</span>' +
-          '</div>';
+          var isPres = s.lastStatus.indexOf('Present') === 0;
+          checkinHtml = '<div class="balance-checkin">'
+            + '<span>' + (isPres ? 'Present' : 'Absent') + ' — ' + s.lastDate + ' — ' + s.lastTime + '</span>'
+            + '<span class="event-tag">' + escapeHtml(s.lastEvent) + '</span>'
+            + '</div>';
         } else {
           checkinHtml = '<div class="balance-checkin">No check-ins yet</div>';
         }
 
-        return '<div class="balance-card" onclick="viewHistory(\'' + safeName + '\')">' +
-          '<div class="balance-top">' +
-            '<span class="balance-name">' + escapeHtml(s.name) + '</span>' +
-            '<span class="' + cls + '">P' + s.balance.toFixed(2) + '</span>' +
-          '</div>' +
-          checkinHtml +
-          '<div class="balance-bottom">' +
-            '<span></span>' +
-            (s.balance > 0 ? '<button class="pay-btn" onclick="event.stopPropagation(); payStudent(\'' + safeName + '\')">Mark Paid</button>' : '<span></span>') +
-          '</div>' +
-        '</div>';
+        return '<div class="balance-card" onclick="viewHistory(\'' + safeId + '\')">'
+          + '<div class="balance-top">'
+          +   '<span class="balance-name">' + escapeHtml(s.name) + ' <span style="color:var(--muted); font-weight:400; font-size:12px;">(' + escapeHtml(s.id) + ')</span></span>'
+          +   '<span class="' + cls + '">₱' + s.balance.toFixed(2) + '</span>'
+          + '</div>'
+          + checkinHtml
+          + '<div class="balance-bottom"><span></span>'
+          + (s.balance > 0
+              ? '<button class="pay-btn" onclick="event.stopPropagation();payStudent(\'' + safeId + '\')">Mark Paid</button>'
+              : '<span></span>')
+          + '</div></div>';
       }).join('');
     }
 
-    function viewHistory(name) {
-      document.getElementById('historyName').textContent = name;
-      document.getElementById('historyBody').innerHTML = '<div class="loading">Loading...</div>';
+    function viewHistory(id) {
+      var student = findStudentById(id);
+      document.getElementById('historyName').textContent = student ? student.name + ' (' + student.id + ')' : id;
+      document.getElementById('historyBody').innerHTML = '<div class="loading">Loading…</div>';
       document.getElementById('historyModal').classList.add('show');
 
-      callApi('getStudentHistory', { name: name }).then(function (history) {
-        var body = document.getElementById('historyBody');
-        if (!history || history.length === 0) {
-          body.innerHTML = '<div class="loading">No attendance records yet.</div>';
-          return;
-        }
-        body.innerHTML = history.map(function (h) {
-          var isPresent = h.status.indexOf('Present') === 0;
-          var periodClass = h.period === 'Morning' ? 'morning' : 'afternoon';
-          return '<div class="history-item">' +
-            '<div class="history-top">' +
-              '<span class="history-event">' + escapeHtml(h.event) + '</span>' +
-              '<span class="history-status ' + (isPresent ? 'present' : 'absent') + '">' + escapeHtml(h.status) + '</span>' +
-            '</div>' +
-            '<div class="history-meta">' + h.date + ' - ' + h.time +
-              ' <span class="period-chip ' + periodClass + '">' + h.period + '</span>' +
-            '</div>' +
-          '</div>';
-        }).join('');
-      }).catch(function (err) {
-        document.getElementById('historyBody').innerHTML = '<div class="loading">Error: ' + err.message + '</div>';
-      });
+      callAPI('getStudentHistory', { id: id })
+        .then(function (history) {
+          var body = document.getElementById('historyBody');
+          if (!history || history.length === 0) {
+            body.innerHTML = '<div class="loading">No attendance records yet.</div>';
+            return;
+          }
+          body.innerHTML = history.map(function (h) {
+            var isPresent   = h.status.indexOf('Present') === 0;
+            var periodClass = h.period === 'Morning' ? 'morning' : 'afternoon';
+            return '<div class="history-item">'
+              + '<div class="history-top">'
+              +   '<span class="history-event">' + escapeHtml(h.event) + '</span>'
+              +   '<span class="history-status ' + (isPresent ? 'present' : 'absent') + '">' + escapeHtml(h.status) + '</span>'
+              + '</div>'
+              + '<div class="history-meta">' + h.date + ' — ' + h.time
+              +   ' <span class="period-chip ' + periodClass + '">' + h.period + '</span>'
+              + '</div></div>';
+          }).join('');
+        })
+        .catch(function (err) {
+          document.getElementById('historyBody').innerHTML =
+            '<div class="loading">Error: ' + escapeHtml(err.message) + '</div>';
+        });
     }
 
     function closeHistory() {
       document.getElementById('historyModal').classList.remove('show');
     }
 
-    function payStudent(name) {
+    function payStudent(id) {
+      var student   = findStudentById(id);
+      var name      = student ? student.name : id;
       var amountStr = prompt('Enter amount paid by ' + name + ':');
       if (amountStr === null) return;
       var amount = parseFloat(amountStr);
       if (isNaN(amount) || amount <= 0) { alert('Invalid amount.'); return; }
 
-      callApi('recordPayment', { name: name, amount: amount }).then(function (updated) {
-        students = updated;
-        renderBalances();
-        showToast('Payment recorded for ' + name);
-      }).catch(function (err) {
-        alert('Error: ' + err.message);
-      });
+      callAPI('recordPayment', { id: id, amount: amount })
+        .then(function (updated) {
+          students = updated;
+          renderBalances();
+          showToast('💰 Payment recorded for ' + name);
+        })
+        .catch(function (err) { alert('Error: ' + err.message); });
     }
 
+    /* ═══════════════════════════════════════════
+       QR CODE PRINT TAB
+    ═══════════════════════════════════════════ */
     function renderQRList() {
       var el = document.getElementById('qrPrintList');
       if (students.length === 0) {
         el.innerHTML = '<div class="loading">No students yet.</div>';
         return;
       }
+      // QR data is now the student's unique Student ID (not the name).
       el.innerHTML = students.map(function (s) {
-        var payload = encodeURIComponent(s.name);
-        var url = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + payload;
-        return '<div class="qr-print-card">' +
-          '<img src="' + url + '" width="220" height="220" alt="QR for ' + escapeHtml(s.name) + '">' +
-          '<div class="student-name">' + escapeHtml(s.name) + '</div>' +
-        '</div>';
+        var payload = encodeURIComponent(s.id);
+        var url     = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=H&data=' + payload;
+        return '<div class="qr-print-card">'
+          + '<img src="' + url + '" width="150" height="150" loading="lazy" alt="QR for ' + escapeHtml(s.id) + '">'
+          + '<div class="student-id">' + escapeHtml(s.id) + '</div>'
+          + '<div class="student-name">' + escapeHtml(s.name) + '</div>'
+          + '</div>';
       }).join('');
     }
 
-    // ============ LIVE QR SCANNER ============
-
+    /* ═══════════════════════════════════════════
+       LIVE QR SCANNER — matches by Student ID
+       Fixes applied:
+         1. inversionAttempts: 'attemptBoth'  (handles dark & light QR codes)
+         2. Crops canvas to the scan-frame box (faster + more accurate decode)
+         3. decodeURIComponent on scanned text (handles any %-encoding)
+         4. Higher error-correction (ecc=H) on generated QR codes
+    ═══════════════════════════════════════════ */
     function openScanner() {
       if (!currentEvent) { alert('Please set an event name first.'); return; }
+      qrSessionCount = 0;
+      document.getElementById('qrScannedCount').textContent = '0';
       var statusEl = document.getElementById('qrStatus');
-      statusEl.textContent = 'Starting camera...';
+      statusEl.textContent = 'Starting camera…';
       statusEl.style.color = 'var(--cyan)';
       document.getElementById('qrLastRow').style.display = 'none';
       document.getElementById('qrModal').classList.add('show');
-      qrLastCode = null;
+      qrLastCode     = null;
       qrLastCodeTime = 0;
       startCamera();
     }
@@ -1155,150 +1246,78 @@
 
     function startCamera() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        document.getElementById('qrStatus').textContent = 'Camera not supported on this device/browser.';
-        document.getElementById('qrStatus').style.color = 'var(--absent)';
+        setQrStatus('Camera not supported on this device/browser.', true);
         return;
       }
-
-      document.getElementById('qrStatus').textContent = 'Starting camera...';
-      document.getElementById('qrStatus').style.color = 'var(--cyan)';
-
-      tryGetCamera(
-        { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1920 } } },
-        false
-      );
-    }
-
-    var qrScanStarted = false;
-    var qrFrameCount = 0;
-
-    function tryGetCamera(constraints, isFallback) {
-      navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
-        qrStream = stream;
-        qrScanStarted = false;
-        qrFrameCount = 0;
-        var video = document.getElementById('qrVideo');
-        video.srcObject = stream;
-
-        function kickOffScan() {
-          if (qrScanStarted) return;
-          qrScanStarted = true;
-          video.play();
-          document.getElementById('qrStatus').textContent = 'Point camera at a QR code...';
-          document.getElementById('qrStatus').style.color = 'var(--cyan)';
-          scanLoop();
+      var constraints = {
+        video: {
+          facingMode: { ideal: 'environment' },
+          width:  { ideal: 1920 },
+          height: { ideal: 1920 }
         }
-
-        video.onloadedmetadata = kickOffScan;
-        video.oncanplay = kickOffScan;
-      }).catch(function (err) {
-        var isConstraintIssue = err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError';
-        if (!isFallback && isConstraintIssue) {
-          tryGetCamera({ video: true }, true);
-          return;
-        }
-
-        var statusEl = document.getElementById('qrStatus');
-        statusEl.style.color = 'var(--absent)';
-
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          statusEl.textContent = 'Camera permission denied. Allow camera access for this site in your browser settings and try again.';
-        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-          statusEl.textContent = 'No camera found on this device.';
-        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-          statusEl.textContent = 'Camera is already in use by another app or browser tab.';
-        } else if (isConstraintIssue) {
-          statusEl.textContent = 'No camera matches the requested settings.';
-        } else if (err.name === 'SecurityError') {
-          statusEl.textContent = 'Camera blocked by browser security settings.';
-        } else {
-          statusEl.textContent = 'Camera error (' + err.name + '): ' + err.message;
-        }
-      });
-    }
-
-    function tapToFocus(evt) {
-      if (!qrStream) return;
-      var track = qrStream.getVideoTracks()[0];
-      if (!track || !track.getCapabilities) return;
-
-      var caps = track.getCapabilities();
-      var constraintsToApply = {};
-
-      // Compute tap point as a 0-1 ratio within the video element, used for
-      // pointsOfInterest on devices that support it.
-      var wrap = document.getElementById('qrVideoWrap');
-      var rect = wrap.getBoundingClientRect();
-      var x = ((evt.clientX - rect.left) / rect.width);
-      var y = ((evt.clientY - rect.top) / rect.height);
-
-      if (caps.pointsOfInterest) {
-        constraintsToApply.pointsOfInterest = [{ x: x, y: y }];
-      }
-      if (caps.focusMode && caps.focusMode.indexOf('single-shot') !== -1) {
-        constraintsToApply.focusMode = 'single-shot';
-      } else if (caps.focusMode && caps.focusMode.indexOf('continuous') !== -1) {
-        constraintsToApply.focusMode = 'continuous';
-      }
-
-      if (Object.keys(constraintsToApply).length > 0) {
-        track.applyConstraints({ advanced: [constraintsToApply] }).catch(function () {
-          // Silently ignore — not all browsers/devices support manual focus control.
+      };
+      navigator.mediaDevices.getUserMedia(constraints)
+        .then(function (stream) {
+          qrStream = stream;
+          var video = document.getElementById('qrVideo');
+          video.srcObject = stream;
+          video.onloadedmetadata = function () {
+            video.play();
+            setQrStatus('Point camera at a QR code…', false);
+            scanLoop();
+          };
+        })
+        .catch(function (err) {
+          setQrStatus('Camera error: ' + err.message, true);
         });
-      }
-
-      // Visual feedback so the user knows the tap registered even if the
-      // underlying focus API isn't supported on this device.
-      var frame = document.getElementById('qrScanFrame');
-      frame.style.transition = 'none';
-      frame.style.borderColor = '#fff';
-      setTimeout(function () {
-        frame.style.transition = '';
-        frame.style.borderColor = '';
-      }, 200);
     }
 
     function stopCamera() {
-      if (qrScanRAF) {
-        cancelAnimationFrame(qrScanRAF);
-        qrScanRAF = null;
-      }
-      if (qrStream) {
-        qrStream.getTracks().forEach(function (t) { t.stop(); });
-        qrStream = null;
-      }
+      if (qrScanRAF) { cancelAnimationFrame(qrScanRAF); qrScanRAF = null; }
+      if (qrStream)  { qrStream.getTracks().forEach(function (t) { t.stop(); }); qrStream = null; }
       var video = document.getElementById('qrVideo');
       video.pause();
       video.srcObject = null;
     }
 
+    function setQrStatus(msg, isError) {
+      var el = document.getElementById('qrStatus');
+      el.textContent  = msg;
+      el.style.color  = isError ? 'var(--absent)' : 'var(--cyan)';
+    }
+
     function scanLoop() {
-      var video = document.getElementById('qrVideo');
+      if (!qrStream) return;  // scanner was closed
+
+      var video  = document.getElementById('qrVideo');
       var canvas = document.getElementById('qrCanvas');
 
-      if (!qrStream) return; // scanner closed
-
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        var w = video.videoWidth;
-        var h = video.videoHeight;
-        if (w && h) {
-          qrFrameCount++;
-          canvas.width = w;
-          canvas.height = h;
+        var vw = video.videoWidth;
+        var vh = video.videoHeight;
+
+        if (vw && vh) {
+          // ── FIX 2: Crop to the scan-frame box (inset 12% each side = 76% of frame) ──
+          var inset  = 0.12;
+          var cropX  = Math.floor(vw * inset);
+          var cropY  = Math.floor(vh * inset);
+          var cropW  = Math.floor(vw * (1 - inset * 2));
+          var cropH  = Math.floor(vh * (1 - inset * 2));
+
+          canvas.width  = cropW;
+          canvas.height = cropH;
           var ctx = canvas.getContext('2d');
-          ctx.drawImage(video, 0, 0, w, h);
-          var imageData = ctx.getImageData(0, 0, w, h);
-          var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+          ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+          var imageData = ctx.getImageData(0, 0, cropW, cropH);
+
+          // ── FIX 1: attemptBoth works for dark-on-light AND light-on-dark QR codes ──
+          var code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'attemptBoth'
+          });
+
           if (code && code.data) {
             handleLiveQrResult(code.data.trim());
-          } else if (qrFrameCount % 30 === 0) {
-            // Periodically show scan activity + resolution so we can confirm
-            // the loop is actually running and see what the camera is capturing.
-            var statusEl = document.getElementById('qrStatus');
-            if (!statusEl.dataset.locked) {
-              statusEl.textContent = 'Scanning... (' + w + 'x' + h + ', frame ' + qrFrameCount + ')';
-              statusEl.style.color = 'var(--muted)';
-            }
           }
         }
       }
@@ -1306,71 +1325,58 @@
       qrScanRAF = requestAnimationFrame(scanLoop);
     }
 
-    function flashFrame(hit) {
+    function flashFrame(success) {
       var frame = document.getElementById('qrScanFrame');
-      frame.classList.toggle('hit', hit);
-      if (hit) {
-        setTimeout(function () { frame.classList.remove('hit'); }, 400);
-      }
+      frame.classList.add('hit');
+      setTimeout(function () { frame.classList.remove('hit'); }, 500);
     }
 
-    function handleLiveQrResult(text) {
+    function handleLiveQrResult(rawText) {
+      // ── FIX 3: decode URI encoding so any %-encoded ID text still matches ──
+      var text = rawText;
+      try { text = decodeURIComponent(rawText); } catch (e) { /* leave as-is */ }
+      text = text.trim();
+
       var now = Date.now();
-      if (text === qrLastCode && (now - qrLastCodeTime) < QR_COOLDOWN_MS) {
-        return;
-      }
 
-      var match = null;
-      for (var i = 0; i < students.length; i++) {
-        if (students[i].name.toLowerCase() === text.toLowerCase() || String(students[i].row) === text) {
-          match = students[i];
-          break;
-        }
-      }
+      // Cooldown: skip if the same code was just scanned to prevent toggling
+      if (text === qrLastCode && (now - qrLastCodeTime) < QR_COOLDOWN_MS) return;
 
-      var statusEl = document.getElementById('qrStatus');
+      // Find matching student by Student ID
+      var match = findStudentById(text);
 
       if (!match) {
-        statusEl.textContent = 'No matching student for "' + text + '"';
-        statusEl.style.color = 'var(--absent)';
-        statusEl.dataset.locked = '1';
-        setTimeout(function () { delete statusEl.dataset.locked; }, 1800);
-        qrLastCode = text;
+        setQrStatus('No student matched ID: "' + text + '"', true);
+        qrLastCode     = text;
         qrLastCodeTime = now;
         return;
       }
 
-      qrLastCode = text;
+      qrLastCode     = text;
       qrLastCodeTime = now;
-      statusEl.dataset.locked = '1';
-      setTimeout(function () { delete statusEl.dataset.locked; }, 1800);
 
-      var lastRow = document.getElementById('qrLastRow');
-      var lastName = document.getElementById('qrLastName');
-      lastRow.style.display = 'flex';
-      lastName.textContent = match.name;
+      // Show last scanned row
+      document.getElementById('qrLastRow').style.display = 'flex';
+      document.getElementById('qrLastName').textContent  = match.name + ' (' + match.id + ')';
 
-      if (presentMap[match.name]) {
-        statusEl.textContent = match.name + ' already marked present';
-        statusEl.style.color = 'var(--cyan)';
+      if (presentMap[match.id]) {
+        setQrStatus(match.name + ' already marked ✓', false);
         flashFrame(true);
       } else {
-        toggleStudent(match.name, true);
-        statusEl.textContent = match.name + ' marked present!';
-        statusEl.style.color = '#2bff8c';
+        toggleStudent(match.id, true);
+        qrSessionCount++;
+        document.getElementById('qrScannedCount').textContent = qrSessionCount;
+        setQrStatus(match.name + ' marked present! ✅', false);
+        document.getElementById('qrStatus').style.color = '#2bff8c';
         flashFrame(true);
         if (navigator.vibrate) navigator.vibrate(120);
-        showToast(match.name + ' checked in via QR');
+        showToast('📷 ' + match.name + ' checked in via QR');
       }
     }
 
-    function escapeHtml(str) {
-      return str.replace(/[&<>"']/g, function (c) {
-        var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-        return map[c];
-      });
-    }
-
+    /* ═══════════════════════════════════════════
+       INIT
+    ═══════════════════════════════════════════ */
     loadStudents();
   </script>
 </body>
