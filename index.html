@@ -20,6 +20,13 @@
       --gradient-accent: linear-gradient(135deg, var(--cyan) 0%, var(--purple) 100%);
     }
     * { box-sizing: border-box; }
+    .logo {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  margin-bottom: 10px;
+  filter: drop-shadow(0 0 12px rgba(0,229,255,0.35));
+  }
     body {
       margin: 0;
       font-family: 'Segoe UI', Roboto, Arial, sans-serif;
@@ -53,6 +60,7 @@
       margin-bottom: 16px;
       text-align: center;
     }
+    
     .tabs {
       display: flex;
       gap: 8px;
@@ -641,10 +649,15 @@
 </head>
 <body>
 
-  <div class="header-wrap">
-    <h1>CPE ATTENDANCE</h1>
-    <div class="subtitle">Tap a name OR scan a QR code to mark present. Unselected names become absent (₱15 penalty) when you finalize.</div>
+ <div class="header-wrap">
+  <img src="https://drive.google.com/thumbnail?id=1hOGgSDbQMyUqY6PdINNdPGTG__Gz2_pK&sz=w200" class="logo">
+
+  <h1>CPE ATTENDANCE</h1>
+
+  <div class="subtitle">
+    Tap a name OR scan a QR code to mark present. Unselected names become absent (₱15 penalty) when you finalize.
   </div>
+</div>
 
   <div class="status-bar">
     <span class="status-datetime" id="statusDateTime">--</span>
